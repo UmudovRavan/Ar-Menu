@@ -436,39 +436,123 @@ const ARView = () => {
         }, 150);
     }, []);
 
-    // AR başlat
+    // AR başlat - MÜTLƏQ button click içində çağırılmalıdır
     const startAR = async () => {
+        // Əgər artıq başlayıbsa, ikinci dəfə başlatma
+        if (streamRef.current) {
+            console.log('⚠️ Kamera artıq açıqdır');
+            return;
+        }
+
         try {
             setArStatus('loading');
             setErrorMessage('');
 
+            // Kamera dəstəyini yoxla
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('Bu cihazda kamera dəstəklənmir');
+            }
+
+            console.log('📷 Kamera permission istənilir...');
+
+            // Kamera stream-i al - bu MÜTLƏQ user gesture (click) içində olmalıdır
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280, min: 640 },
+                    height: { ideal: 720, min: 480 }
+                },
+                audio: false
             });
 
+            console.log('✅ Kamera permission verildi!');
             streamRef.current = stream;
 
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                videoRef.current.onloadedmetadata = () => {
-                    videoRef.current.play().then(() => {
-                        console.log('📹 Kamera açıldı');
-                        setArStatus('running');
-                        setTimeout(async () => {
-                            await setupThreeJS();
-                            startMarkerDetection();
-                        }, 300);
-                    });
-                };
-            }
+            // Əvvəlcə running state-ə keç ki video element DOM-da olsun
+            setArStatus('running');
+
         } catch (error) {
-            console.error('AR xətası:', error);
+            console.error('❌ AR xətası:', error);
             setArStatus('error');
-            setErrorMessage(error.name === 'NotAllowedError'
-                ? 'Kamera icazəsi verilmədi.'
-                : 'Kamera açıla bilmədi: ' + error.message);
+
+            // Xəta mesajlarını tərcümə et
+            let errorMsg = 'Kamera açıla bilmədi';
+
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                errorMsg = 'Kamera icazəsi verilmədi. Zəhmət olmasa brauzer ayarlarından kamera icazəsini verin.';
+            } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                errorMsg = 'Kamera tapılmadı. Bu cihazda kamera yoxdur.';
+            } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                errorMsg = 'Kamera başqa proqram tərəfindən istifadə olunur.';
+            } else if (error.name === 'OverconstrainedError') {
+                errorMsg = 'Kamera tələb olunan keyfiyyəti dəstəkləmir.';
+            } else if (error.name === 'TypeError') {
+                errorMsg = 'HTTPS əlaqəsi tələb olunur. Saytı https:// ilə açın.';
+            } else if (error.message) {
+                errorMsg = error.message;
+            }
+
+            setErrorMessage(errorMsg);
+
+            // Stream varsa təmizlə
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+            }
         }
     };
+
+    // Video element DOM-da olduqda stream-i bağla
+    useEffect(() => {
+        const attachStream = async () => {
+            if (arStatus === 'running' && videoRef.current && streamRef.current) {
+                const video = videoRef.current;
+
+                // Stream artıq bağlıdırsa, yenidən bağlama
+                if (video.srcObject === streamRef.current) {
+                    return;
+                }
+
+                try {
+                    console.log('🎬 Stream video elementə bağlanır...');
+                    video.srcObject = streamRef.current;
+
+                    // Video yüklənənə qədər gözlə
+                    await new Promise((resolve, reject) => {
+                        video.onloadedmetadata = () => {
+                            console.log('📹 Video metadata yükləndi');
+                            resolve();
+                        };
+
+                        video.onerror = (e) => {
+                            console.error('❌ Video error:', e);
+                            reject(new Error('Video yüklənə bilmədi'));
+                        };
+
+                        // Timeout - 5 saniyə
+                        setTimeout(() => reject(new Error('Video timeout')), 5000);
+                    });
+
+                    // Video-nu oynat
+                    await video.play();
+                    console.log('▶️ Video play başladı!');
+
+                    // Three.js və marker detection-ı başlat
+                    setTimeout(async () => {
+                        await setupThreeJS();
+                        startMarkerDetection();
+                    }, 300);
+
+                } catch (error) {
+                    console.error('❌ Video bağlama xətası:', error);
+                    setArStatus('error');
+                    setErrorMessage('Video başladıla bilmədi: ' + error.message);
+                }
+            }
+        };
+
+        attachStream();
+    }, [arStatus, setupThreeJS, startMarkerDetection]);
 
     const stopAR = () => {
         stopCamera();
@@ -544,13 +628,13 @@ const ARView = () => {
             {arStatus === 'loading' && (
                 <div className="ar-loading">
                     <div className="ar-loading-spinner"></div>
-                    <p>AR yüklənir...</p>
+                    <p>Kamera açılır...</p>
                 </div>
             )}
 
             {(arStatus === 'running' || arStatus === 'detected') && (
                 <div className="ar-container">
-                    <video ref={videoRef} className="ar-video" autoPlay playsInline muted />
+                    <video ref={videoRef} className="ar-video" playsInline muted />
                     <canvas ref={canvasRef} className="ar-canvas" />
 
                     <div className="ar-status-overlay">
@@ -564,7 +648,7 @@ const ARView = () => {
                         {modelStatus === 'loaded' && arStatus === 'running' && !markerDetected && (
                             <div className="ar-status-message">
                                 <div className="ar-scan-icon">📷</div>
-                                <p>Tünd naxışı kameraya göstərin</p>
+                                <p>Türk naxışı kameraya göstərin</p>
                             </div>
                         )}
 
