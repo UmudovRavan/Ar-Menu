@@ -1031,6 +1031,43 @@ body {
 /* RESPONSIVE */
 /* ==================== */
 
+/* AR Warning */
+.ar-warning {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: rgba(231, 76, 60, 0.1);
+  border: 1px solid var(--error-color);
+  border-radius: 8px;
+  color: var(--error-color);
+  font-size: 0.95rem;
+}
+
+/* AR HUD */
+.ar-hud {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
+  pointer-events: none;
+}
+
+.ar-instruction {
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 12px 25px;
+  border-radius: 25px;
+  backdrop-filter: blur(10px);
+}
+
+.ar-instruction span {
+  color: white;
+  font-size: 0.95rem;
+}
+
+.ar-instruction.success {
+  background-color: rgba(0, 184, 148, 0.9);
+}
+
 @media (max-width: 768px) {
   .navbar {
     flex-direction: column;

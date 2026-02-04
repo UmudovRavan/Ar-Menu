@@ -45,7 +45,7 @@ export const menuItems = [
         price: 14.99,
         category: "Əsas Yeməklər",
         thumbnail: "https://images.unsplash.com/photo-1551326844-4df70f78d0e9?w=300&h=200&fit=crop",
-        model3D: "" // Default model istifadə olunacaq
+        model3D: "/models/pizza.glb"
     },
     {
         id: 6,
@@ -54,7 +54,7 @@ export const menuItems = [
         price: 16.99,
         category: "Əsas Yeməklər",
         thumbnail: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=300&h=200&fit=crop",
-        model3D: "" // Default model istifadə olunacaq
+        model3D: "/models/pizza.glb"
     },
     {
         id: 7,
@@ -63,7 +63,7 @@ export const menuItems = [
         price: 7.99,
         category: "Qəlyanaltılar",
         thumbnail: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&h=200&fit=crop",
-        model3D: ""
+        model3D: "/models/pizza.glb"
     },
     {
         id: 8,
@@ -72,7 +72,7 @@ export const menuItems = [
         price: 6.99,
         category: "Desertlər",
         thumbnail: "https://images.unsplash.com/photo-1519676867240-f03562e64548?w=300&h=200&fit=crop",
-        model3D: ""
+        model3D: "/models/pizza.glb"
     }
 ];
 
@@ -85,4 +85,4 @@ export const getMenuItemById = (id) => {
 };
 
 // Default 3D model
-export const DEFAULT_MODEL = "/models/burger.glb";
+export const DEFAULT_MODEL = "/models/pizza.glb";
