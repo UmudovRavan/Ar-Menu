@@ -13,6 +13,7 @@ const ARView = () => {
     const [errorMessage, setErrorMessage] = useState('');
 
     const containerRef = useRef(null);
+    const overlayRef = useRef(null);
     const rendererRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -154,6 +155,14 @@ const ARView = () => {
             return;
         }
 
+        // Overlay elementinin mövcud olmasını yoxla
+        const overlayElement = overlayRef.current;
+        if (!overlayElement) {
+            setErrorMessage('AR overlay elementi tapılmadı');
+            setArStatus('error');
+            return;
+        }
+
         try {
             setArStatus('loading');
 
@@ -164,9 +173,11 @@ const ARView = () => {
             renderer.xr.enabled = true;
             rendererRef.current = renderer;
 
-            if (containerRef.current) {
-                containerRef.current.innerHTML = '';
-                containerRef.current.appendChild(renderer.domElement);
+            // Canvas-ı container-ə əlavə et
+            const container = containerRef.current;
+            if (container) {
+                container.innerHTML = '';
+                container.appendChild(renderer.domElement);
             }
 
             // Scene yarat
@@ -190,13 +201,16 @@ const ARView = () => {
             scene.add(reticle);
             reticleRef.current = reticle;
 
-            // Model yüklə
+            // Model yüklə - pizza.glb
             let model;
             const modelPath = food?.model3D?.trim() || '/models/pizza.glb';
 
             try {
+                console.log('Model yüklənir:', modelPath);
                 model = await loadGLBModel(modelPath);
+                console.log('Model uğurla yükləndi');
             } catch (e) {
+                console.warn('GLB model yüklənə bilmədi, fallback model istifadə edilir:', e);
                 model = createPizzaModel();
             }
 
@@ -204,12 +218,15 @@ const ARView = () => {
             scene.add(model);
             modelRef.current = model;
 
-            // XR Session başlat
-            const session = await navigator.xr.requestSession('immersive-ar', {
+            // XR Session options
+            const sessionOptions = {
                 requiredFeatures: ['hit-test'],
                 optionalFeatures: ['dom-overlay'],
-                domOverlay: { root: containerRef.current }
-            });
+                domOverlay: { root: overlayElement }
+            };
+
+            // XR Session başlat
+            const session = await navigator.xr.requestSession('immersive-ar', sessionOptions);
 
             xrSessionRef.current = session;
             renderer.xr.setReferenceSpaceType('local');
@@ -283,15 +300,15 @@ const ARView = () => {
 
     // Touch event listeners
     useEffect(() => {
-        const container = containerRef.current;
-        if (container && arStatus === 'running') {
-            container.addEventListener('touchstart', handleTouchStart);
-            container.addEventListener('touchmove', handleTouchMove);
-            container.addEventListener('touchend', handleTouchEnd);
+        const overlay = overlayRef.current;
+        if (overlay && arStatus === 'running') {
+            overlay.addEventListener('touchstart', handleTouchStart);
+            overlay.addEventListener('touchmove', handleTouchMove);
+            overlay.addEventListener('touchend', handleTouchEnd);
             return () => {
-                container.removeEventListener('touchstart', handleTouchStart);
-                container.removeEventListener('touchmove', handleTouchMove);
-                container.removeEventListener('touchend', handleTouchEnd);
+                overlay.removeEventListener('touchstart', handleTouchStart);
+                overlay.removeEventListener('touchmove', handleTouchMove);
+                overlay.removeEventListener('touchend', handleTouchEnd);
             };
         }
     }, [arStatus, handleTouchStart, handleTouchMove, handleTouchEnd]);
@@ -320,6 +337,57 @@ const ARView = () => {
     return (
         <div className="page ar-page">
             <h1>🥽 AR Görünüş - {food.name}</h1>
+
+            {/* AR DOM Overlay - həmişə render olunur, XR session üçün lazımdır */}
+            <div
+                id="ar-overlay"
+                ref={overlayRef}
+                style={{
+                    display: arStatus === 'running' ? 'block' : 'none',
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 1001,
+                    pointerEvents: 'auto'
+                }}
+            >
+                <div className="ar-hud">
+                    {!modelPlaced && (
+                        <div className="ar-instruction">
+                            <span>📍 Masa səthinə yönəldin və yaşıl dairəyə toxunun</span>
+                        </div>
+                    )}
+                    {modelPlaced && (
+                        <div className="ar-instruction success">
+                            <span>✓ {food.name} yerləşdirildi! Fırlatmaq üçün sürüşdürün</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="ar-food-badge">
+                    <span className="ar-food-name">{food.name}</span>
+                    <span className="ar-food-price">{food.price.toFixed(2)} ₼</span>
+                </div>
+
+                <button className="ar-close-btn" onClick={stopAR}>✕</button>
+            </div>
+
+            {/* WebGL Canvas Container */}
+            <div
+                ref={containerRef}
+                className="ar-canvas-container"
+                style={{
+                    display: arStatus === 'running' || arStatus === 'loading' ? 'block' : 'none',
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 1000
+                }}
+            />
 
             {arStatus === 'idle' && (
                 <div className="ar-content">
@@ -374,31 +442,7 @@ const ARView = () => {
             {arStatus === 'loading' && (
                 <div className="ar-loading">
                     <div className="ar-loading-spinner"></div>
-                    <p>AR yüklənir...</p>
-                </div>
-            )}
-
-            {arStatus === 'running' && (
-                <div className="ar-container" ref={containerRef}>
-                    <div className="ar-hud">
-                        {!modelPlaced && (
-                            <div className="ar-instruction">
-                                <span>📍 Masa səthinə yönəldin və yaşıl dairəyə toxunun</span>
-                            </div>
-                        )}
-                        {modelPlaced && (
-                            <div className="ar-instruction success">
-                                <span>✓ {food.name} yerləşdirildi! Fırlatmaq üçün sürüşdürün</span>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="ar-food-badge">
-                        <span className="ar-food-name">{food.name}</span>
-                        <span className="ar-food-price">{food.price.toFixed(2)} ₼</span>
-                    </div>
-
-                    <button className="ar-close-btn" onClick={stopAR}>✕</button>
+                    <p>Kamera açılır və AR yüklənir...</p>
                 </div>
             )}
 
